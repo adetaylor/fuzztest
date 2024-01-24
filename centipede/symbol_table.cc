@@ -21,6 +21,7 @@
 #include <ostream>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <vector>
 
 #include "absl/log/check.h"
@@ -40,9 +41,28 @@
 namespace centipede {
 
 bool SymbolTable::operator==(const SymbolTable &other) const {
-  absl::MutexLock l{&mu_};
-  absl::MutexLock l{&other.mu_};
+  absl::MutexLock l1{&mu_}; // TODO consider whether there's a possibility of deadlock
+    // by looking at call sites
+  absl::MutexLock l2{&other.mu_};
   return this->entries_ == other.entries_;
+}
+
+SymbolTable &SymbolTable::operator=(SymbolTable && other) {
+  SymbolTable self;
+  absl::MutexLock l1{&self.mu_}; // TODO consider whether there's a possibility of deadlock
+    // by looking at call sites
+  absl::MutexLock l2{&other.mu_};
+  self.table_ = std::move(other.table_);
+  self.entries_ = std::move(other.entries_);
+  return *this;
+}
+
+SymbolTable::SymbolTable(SymbolTable &&other) {
+  absl::MutexLock l1{&mu_}; // TODO consider whether there's a possibility of deadlock
+    // by looking at call sites
+  absl::MutexLock l2{&other.mu_};
+  table_ = std::move(other.table_);
+  entries_ = std::move(other.entries_);
 }
 
 void SymbolTable::ReadFromLLVMSymbolizer(std::istream &in) {
@@ -122,7 +142,7 @@ static void SymbolizeOneDso(SymbolTable* self, absl::Span<const PCInfo> pc_infos
                                        std::string_view symbolizer_path,
                                        std::string_view tmp_path1,
                                        std::string_view tmp_path2) {
-                                        self.GetSymbolsFromOneDso(pc_info, dso_path, symbolizer_path, tmp_path1, tmp_path2); // TODO check temp_path assumptions
+                                        self->GetSymbolsFromOneDso(pc_infos, dso_path, symbolizer_path, tmp_path1, tmp_path2); // TODO check temp_path assumptions
                                        }
 
 void SymbolTable::GetSymbolsFromBinary(const PCTable &pc_table,
@@ -152,7 +172,7 @@ void SymbolTable::GetSymbolsFromBinary(const PCTable &pc_table,
                          tmp_path2);
     pc_idx_begin += dso_info.num_instrumented_pcs;
   }
-  for (const auto& thread: threads) {
+  for (auto& thread: threads) {
     thread.join();
   }
 

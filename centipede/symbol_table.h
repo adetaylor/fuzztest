@@ -64,8 +64,8 @@ class SymbolTable {
 
   SymbolTable() = default;
   SymbolTable(const SymbolTable &) = delete;
-  SymbolTable(SymbolTable &&) = delete;
-  SymbolTable &operator=(SymbolTable &&) = delete;
+  SymbolTable(SymbolTable &&);
+  SymbolTable &operator=(SymbolTable &&);
 
   bool operator==(const SymbolTable &other) const;
 
@@ -102,16 +102,16 @@ class SymbolTable {
   void SetAllToUnknown(size_t size);
 
   // Returns the number of symbol entries.
-  size_t size() const { absl::MutexLock l{const_cast<absl::Mutex*>(&mu_)}; return entries_.size(); }
+  size_t size() const { absl::MutexLock l{&mu_}; return entries_.size(); }
 
   // Returns "FunctionName" for idx-th entry.
-  std::string func(size_t idx) const { absl::MutexLock l{const_cast<absl::Mutex*>(&mu_)}; return std::string(entries_[idx].func); }
+  std::string func(size_t idx) const { absl::MutexLock l{&mu_}; return std::string(entries_[idx].func); }
 
-  Entry entry(size_t idx) const {  absl::MutexLock l{const_cast<absl::Mutex*>(&mu_)};  return entries_[idx]; }
+  Entry entry(size_t idx) const {  absl::MutexLock l{&mu_};  return entries_[idx]; }
 
   // Returns source code location for idx-th entry,
   std::string location(size_t idx) const {
-    absl::MutexLock l{const_cast<absl::Mutex*>(&mu_)}; 
+    absl::MutexLock l{&mu_}; 
     return entries_[idx].file_line_col();
   }
 
@@ -141,7 +141,7 @@ class SymbolTable {
   std::vector<Entry> entries_ ABSL_GUARDED_BY(mu_);
 
   // A mutex to be claimed when accessing the table
-  absl::Mutex mu_;
+  mutable absl::Mutex mu_;
 };
 
 }  // namespace centipede
